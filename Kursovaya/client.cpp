@@ -1,212 +1,283 @@
-#include "client.h"
+#include "order.h"
 #include <cstdio>
 #include <iostream>
 #include <limits>
-#include <algorithm>
 #include <iomanip>
+#include <algorithm>
 #include <unordered_map>
 
 using namespace std;
 
-// --- Функции для работы с файлами ---
-
-void readClientsFromFile(std::unordered_map<int, Client>& clientsMap, const std::string& filename) {
+void readOrdersFromFile(std::unordered_map<int, Order>& ordersMap, const std::string& filename) {
     FILE* inputFile = fopen(filename.c_str(), "r");
     if (!inputFile) {
-        cerr << "Error" << filename << endl;
+        cerr << "Error " << filename << endl;
         return;
     }
 
-    int id, age;
-    char name[100]; // assuming the name won't exceed 99 characters
-    double salary;
+    int id, clientId;
+    double total;
 
-    while (fscanf(inputFile, "%d %99s %d %lf", &id, name, &age, &salary) == 4) {
-        clientsMap[id] = Client{id, string(name), age, salary};
+    while (fscanf(inputFile, "%d %d %lf", &id, &clientId, &total) == 3) {
+        ordersMap[id] = Order(id, clientId,total);
+     
     }
 
     fclose(inputFile);
 }
-
-void saveClientsToFile(const std::unordered_map<int, Client>& clientsMap, const std::string& filename) {
+void saveOrdersToFile(const std::unordered_map<int, Order>& ordersMap, const std::string& filename) {
     FILE* outputFile = fopen(filename.c_str(), "w");
     if (!outputFile) {
-        cerr << "Error" << filename << endl;
+        cerr << "Error opening file: " << filename << endl;
         return;
     }
 
-    for (const auto& pair : clientsMap) {
-        fprintf(outputFile, "%d %s %d %.2f\n",
-                pair.second.id,
-                pair.second.name.c_str(),
-                pair.second.age,
-                pair.second.salary);
+    for (const auto& pair : ordersMap) {
+        fprintf(outputFile, "%d %d %.2f\n", pair.second.id, pair.second.clientId, pair.second.total);
     }
 
     fclose(outputFile);
 }
 
-   // --- Функции меню и операций ---
 
-void menu_clients(std::unordered_map<int, Client>& clientsMap) {
-       int opt;
-       string search_name;
 
-       do {
-           cout << left;    
-           cout << setw(20) << "\n --- MANAGMENT OF CLIENTS ---" << endl;
-           cout << "\nSelect an option from [1-5] according to the menu:" << endl;
-           cout << "[1]. Insert client" << endl;
-           cout << "[2]. Read list of clients" << endl;
-           cout << "[3]. Update client" << endl; 
-           cout << "[4]. Delete client" << endl; 
-           cout << "[5]. Exit" << endl;
-           cin >> opt;
-           switch (opt) {
-               case 1:     // insert
-                   insert_client(clientsMap);
-                   break;
-               case 2:     // read 
-                   print_lst_clients(clientsMap);
-                   break;
-               case 3:     // update client
-                   cout << "\n*** Update Client ***" << endl;
-                   cout << "\nWrite the client name to update: ";
-                   cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Очистка буфера ввода
-                   getline(cin, search_name); // Считывание строки с пробелами
-                   update_client(search_name, clientsMap);
-                   break;
-               case 4:     // delete client
-                   cout << "\n*** Delete Client ***" << endl;
-                   cout << "\nWrite the client name to delete: ";
-                   cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Очистка буфера ввода
-                   getline(cin, search_name); // Считывание строки с пробелами
-                   delete_client(search_name, clientsMap);
-                   break;
-               case 5:
-                   cout << "Exiting to main menu..." << endl;
-                   break;
-               default:
-                   cout << "\nInvalid option" << endl;
-                   break;
-           }
-       } while (opt != 5);    
-   }
 
-   // insert new client
-   void insert_client(std::unordered_map<int, Client>& clientsMap) {
-       cout << "\n*** Insert new Client ***" << endl;
+void readOrderDetailsFromFile(std::unordered_map<int, Order>& ordersMap, std::unordered_map<int, Book>& booksMap, const std::string& filename) {
+    FILE* inputFile = fopen(filename.c_str(), "r");
+    if (!inputFile) {
+        cerr << "Error " << filename << endl;
+        return;
+    }
 
-       int id;
-       if (clientsMap.empty()) {
-           id = 1;
-       } else {
-           id = std::max_element(clientsMap.begin(), clientsMap.end(),
-                               [](const auto& p1, const auto& p2) {
-                                   return p1.first < p2.first;
-                               })->first + 1;
+    int orderId, bookId, quantity;
+    double subtotal;
+
+    while (fscanf(inputFile, "%d %d %d %lf", &orderId, &bookId, &quantity, &subtotal) == 4) {
+        if (ordersMap.find(orderId) != ordersMap.end()) {
+            ordersMap[orderId].details.push_back(OrderDetail(bookId, quantity, subtotal));
+            if (booksMap.find(bookId) == booksMap.end()) {
+                cerr << "Warning: Book with ID " << bookId << " not found for order " << orderId << endl;
+            }
+        } else {
+            cerr << "Warning: Order with ID " << orderId << " not found for order detail." << endl;
+        }
+    }
+
+    fclose(inputFile);
+}
+
+void saveOrderDetailsToFile(const std::unordered_map<int, Order>& ordersMap, const std::string& filename) {
+    FILE* outputFile = fopen(filename.c_str(), "w");
+    if (!outputFile) {
+        cerr << "Error " << filename << endl;
+        return;
+    }
+
+    for (const auto& orderPair : ordersMap) {
+        for (const auto& detail : orderPair.second.details) {
+            fprintf(outputFile, "%d %d %d %.2f\n", orderPair.first, detail.bookId, detail.quantity, detail.subtotal);
+        }
+    }
+
+    fclose(outputFile);
+}
+
+
+
+
+void menu_orders(std::unordered_map<int, Client>& clientsMap, std::unordered_map<int, Book>& booksMap, std::unordered_map<int, Order>& ordersMap) {
+    int opt;
+
+    do {
+        cout << left;
+        cout << setw(20) << "\n --- MANAGMENT OF ORDERS ---" << endl;
+        cout << "\nSelect an option from [1-4] according to the menu:" << endl;
+        cout << "[1]. Insert order" << endl;
+        cout << "[2]. Print list of orders" << endl;
+        cout << "[3]. Delete order detail" << endl; // Added this line
+        cout << "[4]. Exit" << endl;
+        cout << "-----------------------------------------------" << endl;
+        cout << "Enter option: ";
+        cin >> opt;
+
+        switch (opt) {
+            case 1:     // insert order
+                insert_order(clientsMap, booksMap, ordersMap);
+                break;
+            case 2:     // print orders/details
+                print_list_orders(clientsMap, booksMap, ordersMap);
+                break;
+            case 3:     // delete order detail
+                delete_order_detail_flow(ordersMap, booksMap);
+                break;
+            case 4:
+                cout << "Exiting to main menu..." << endl;
+                break;
+            default:
+                cout << "\nInvalid option" << endl;
+                break;
+        }
+    } while (opt != 4);    
+}
+
+void insert_order(std::unordered_map<int, Client>& clientsMap, std::unordered_map<int, Book>& booksMap, std::unordered_map<int, Order>& ordersMap) {
+    string search_name, cont;
+    int clientId;
+
+    cout << "\n*** Insert new Order ***" << endl;
+
+    cout << "\nClient name: ";
+    cin >> search_name;
+
+    clientId = search_client(search_name, clientsMap);
+    if (clientId == -1) {
+        cout << "\nClient not found!" << endl;
+        return;
+    }
+
+    int orderId;
+    if (ordersMap.empty()) {
+        orderId = 1;
+    } else {
+        orderId = std::max_element(ordersMap.begin(), ordersMap.end(),
+                                [](const auto& p1, const auto& p2) {
+                                    return p1.first < p2.first;
+                                })->first + 1;
+    }
+
+    ordersMap[orderId] = Order(orderId, clientId);
+    Order& order = ordersMap[orderId]; 
+
+    do {
+        insert_order_detail(order, booksMap); 
+
+        cout << "Do you want to add another order detail? (y/n): ";
+        cin >> cont;
+    } while (cont == "y" || cont == "Y");
+
+    cout << "Order successfully added.\n";
+}
+
+   void insert_order_detail(Order& order, std::unordered_map<int, Book>& booksMap) {
+       string search_title;
+       int bookId, quantity;
+
+       cout << "\n*** New Order Detail ***" << endl;
+       cout << "\nBook title: ";
+       cin >> search_title;
+
+       // Поиск ID книги по названию
+       bookId = search_book(search_title, booksMap);  // Используй функцию search_book
+
+       if (bookId == -1) { // Книга не найдена
+           cout << "\nBook not found!" << endl;
+           return;
        }
 
-       string name;
-       int age;
-       double salary;
-
-       cout << "Name: ";
-       cin >> name;
+       auto& book = booksMap.at(bookId);
 
        do {
-           cout << "Age: ";
-           cin >> age;
-       } while (age <= 0);
+           cout << "Quantity: ";
+           cin >> quantity;
+       } while (quantity <= 0 || quantity > book.getQuantity());
 
-       do {
-           cout << "Salary: ";
-           cin >> salary;
-       } while (salary < 20000 || salary > 500000);
+       double subtotal = book.getPrice() * quantity;
+       order.details.push_back(OrderDetail(bookId, quantity, subtotal));
+       order.total += subtotal;
 
-       clientsMap[id] = Client{id, name, age, salary};
-       cout << "Client successfully added.\n";
+       book.setQuantity(book.getQuantity() - quantity); // Обновляем количество на складе
    }
- 
-   // print list of clients
-void print_lst_clients(const std::unordered_map<int, Client>& clientsMap) {
-    cout << "\n*** List of clients ***" << endl;
-    cout << left;
-    cout << setw(10) << "ID" << setw(15) << "Name" << setw(10) << "Age"
-         << setw(10) << "Salary" << endl;
-    cout << "---------------------------------------------------------------------" << endl;
+ void print_list_orders(const std::unordered_map<int, Client>& clientsMap, 
+                           std::unordered_map<int, Book>& booksMap, 
+                           const std::unordered_map<int, Order>& ordersMap) {
+       cout << "\n*** List of Orders ***" << endl;
 
-    for (const auto& pair : clientsMap) {
-        print_client(pair.second);
-    }
-}
+       if (ordersMap.empty()) {
+           cout << "No orders found.\n";
+           return;
+       }
 
-// print 1 client
-void print_client(const Client& c) {
-    cout << setw(10) << c.id <<
-         setw(15) << c.name <<
-         setw(10) << c.age <<
-         setw(10) << c.salary << endl;
-}
+       for (const auto& orderPair : ordersMap) {
+           print_order(orderPair.second, clientsMap, booksMap);
+       }
+   }
 
-// search some client given the name
-int search_client(const std::string& search_name, const std::unordered_map<int, Client>& clientsMap) {
-    for (const auto& pair : clientsMap) {
-        if (pair.second.name == search_name) {
-            return pair.second.id; // Возвращаем ID клиента
-        }
-    }
-    return -1; // Клиент не найден
-}
+void print_order(const Order& order, const unordered_map<int, Client>& clientsMap, unordered_map<int, Book>& booksMap) {
+    cout << "Order ID: " << order.id << endl;
 
-// get 1 client
-Client get_client(int id, const std::unordered_map<int, Client>& clientsMap) {
-    auto it = clientsMap.find(id);
-    if (it != clientsMap.end()) {
-        return it->second;
-    } else {
-        return Client{-1, "", 0, 0.0}; // Возвращаем "пустого" клиента
-    }
-}
-
-// update client
-void update_client(const std::string& search_name, std::unordered_map<int, Client>& clientsMap) {
-    int id = search_client(search_name, clientsMap);
-    if (id != -1) {
-        cout << "\n*** Update Client ***" << endl;
-
-        auto& client = clientsMap[id];
-
-        cout << "Name (" << client.name << "): ";
-        string name;
-        getline(cin >> ws, name); // Считываем строку с пробелами
-        if (!name.empty()) {
-            client.name = name;
+    auto clientIt = clientsMap.find(order.clientId);
+        if (clientIt != clientsMap.end()) {
+            cout << "Client: " << clientIt->second.getName() << endl;
+        } else {
+            cout << "Client: Not found (ID: " << order.clientId << ")" << endl;
         }
 
-        do {
-            cout << "Age (" << client.age << "): ";
-            cin >> client.age;
-        } while (client.age <= 0);
+        cout << "-------------------------------------------------------------" << endl;
+        cout << left;
+        cout << setw(10) << "Item" << setw(30) << "Book" << setw(15) << "Unit Price"
+            << setw(10) << "Quantity" << setw(10) << "Subtotal" << endl;
+        cout << "-------------------------------------------------------------" << endl;
 
-        do {
-            cout << "Salary (" << client.salary << "): ";
-            cin >> client.salary;
-        } while (client.salary < 20000 || client.salary > 500000);
+        int item = 1;
+        double total = 0; // Инициализация переменной для подсчёта итоговой суммы
+        for (const auto& detail : order.details) {
+            auto bookIt = booksMap.find(detail.bookId);
+            string bookTitle = (bookIt != booksMap.end()) ? bookIt->second.getName() : "Not found";
 
-        cout << "\nClient updated!" << endl;
-    } else {
-        cout << "\nClient not found!" << endl;
-    }    
+            double unitPrice = detail.subtotal / detail.quantity; // Вычисление цены за единицу
+            
+            cout << setw(10) << item++ <<
+                setw(30) << bookTitle <<
+                setw(15) << unitPrice <<
+                setw(10) << detail.quantity <<
+                setw(10) << detail.subtotal << endl;
+
+            total += detail.subtotal; // Суммирование для итоговой суммы
+        }
+
+        cout << "\nTotal: " << total << endl << endl; // Вывод итоговой суммы
 }
 
-// delete client
-void delete_client(const std::string& search_name, std::unordered_map<int, Client>& clientsMap) {
-    int id = search_client(search_name, clientsMap);
-    if (id != -1) {
-        clientsMap.erase(id);
-        cout << "\nClient deleted!" << endl;
-    } else {
-        cout << "\nClient not found" << endl;
+
+    void delete_order_detail_flow(std::unordered_map<int, Order>& ordersMap, std::unordered_map<int, Book>& booksMap) {
+    int orderId, detailIndex;
+
+    cout << "\nEnter the Order ID: ";
+    cin >> orderId;
+
+    auto orderIt = ordersMap.find(orderId);
+    if (orderIt == ordersMap.end()) {
+        cout << "Order not found!" << endl;
+        return;
     }
+
+    Order& order = orderIt->second;
+
+    if (order.details.empty()) {
+        cout << "No details to delete in this order." << endl;
+        return;
+    }
+    
+    cout << "Enter the index of the detail to delete (starting from 0): ";
+    cin >> detailIndex;
+
+    if (detailIndex < 0 || detailIndex >= order.details.size()) {
+        cout << "Invalid detail index!" << endl;
+        return;
+    }
+
+    // Restore book quantity
+    auto& detail = order.details[detailIndex];
+    auto bookIt = booksMap.find(detail.bookId);
+    if (bookIt != booksMap.end()) {
+        bookIt->second.setQuantity(bookIt->second.getQuantity() + detail.quantity);
+    }
+
+    // Update order total
+    order.total -= detail.subtotal;
+
+    // Remove the detail
+    order.details.erase(order.details.begin() + detailIndex);
+
+    cout << "Order detail removed successfully." << endl;
 }
