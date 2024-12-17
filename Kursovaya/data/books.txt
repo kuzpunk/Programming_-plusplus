@@ -1,0 +1,5 @@
+4  Kazmin Hype 44 700.00 2018 0
+5  Kuzpunk Moon 300 1000.00 2019 1
+1  Dostoevskiy Idiot 110 400.00 2007 2
+2  Kuprin Siren 200 600.00 2002 2
+3  Pushkin Fish 35 500.00 2023 3
